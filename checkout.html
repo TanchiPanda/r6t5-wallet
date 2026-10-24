@@ -72,8 +72,14 @@ var bookid = params.get("bookid");
 var isPro = params.get("pro") === "true";
 
 var user = null;
-try { user = JSON.parse(localStorage.getItem("wordGameGitHubUser") || "null"); } catch (e) {}
-var uid = user ? (user.email || user.login || user.id || "") : "";
+// 优先从 URL 参数读（从游戏站跳转）
+var urlUid = params.get("uid");
+if (urlUid) {
+  uid = decodeURIComponent(urlUid);
+} else {
+  try { user = JSON.parse(localStorage.getItem("wordGameGitHubUser") || "null"); } catch (e) {}
+  uid = user ? (user.email || user.login || user.id || "") : "";
+}
 
 if (!uid) {
   document.getElementById("itemName").textContent = "请先登录";
@@ -95,9 +101,16 @@ function loadOrder() {
     }
   } else if (app === "wordgm" && bookid) {
     // 词书购买：0.1 积分/词/月
-    // TODO: 从 D1 拉取词书信息计算价格
-    itemName = "词书 " + bookid;
-    itemPrice = "待计算";
+    // 初二秋季教材：383 词 = 38.3 积分/月
+    // One 用户 8 折 = 30.6 积分/月
+    var bookPrices = {
+      "初二秋季教材": 38.3,
+      "示例·旅行英语": 12.5,
+      "示例·日常口语": 10.0,
+      "英语课程标准2022单词表初中": 85.0
+    };
+    itemName = "词书「" + bookid + "」（1 个月）";
+    itemPrice = bookPrices[bookid] || 20.0;
   }
   document.getElementById("itemName").textContent = itemName;
   document.getElementById("itemPrice").textContent = typeof itemPrice === "number" ? itemPrice + " 积分" : itemPrice;
