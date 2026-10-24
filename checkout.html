@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R6T5 Wallet - 结账</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:"Comic Sans MS","Chalkboard SE","Microsoft Yahei","PingFang SC",sans-serif; }
+body { background:linear-gradient(135deg,#162a22,#1a3a2e); color:#e0f0e8; min-height:100vh; padding:20px; max-width:600px; margin:0 auto; }
+h1 { margin-bottom:20px; font-size:22px; }
+.card { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:20px; margin-bottom:16px; }
+.order-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.1); }
+.order-row:last-child { border-bottom:none; }
+.order-label { color:#aaa; }
+.order-value { font-weight:bold; }
+.btn { display:block; width:100%; padding:14px; border:none; border-radius:10px; font-size:15px; cursor:pointer; margin-top:10px; font-weight:bold; }
+.btn-primary { background:linear-gradient(135deg,#4a9e6e,#5ab87e); color:#fff; }
+.btn:disabled { opacity:0.5; cursor:not-allowed; }
+.status { margin-top:12px; font-size:13px; text-align:center; }
+.order-id { font-size:18px; font-weight:bold; color:#ffd54f; text-align:center; padding:20px; background:rgba(255,213,79,0.1); border-radius:10px; margin:16px 0; }
+</style>
+</head>
+<body>
+<h1>💳 确认订单</h1>
+
+<div id="orderInfo">
+  <div class="card">
+    <div class="order-row">
+      <span class="order-label">商品</span>
+      <span class="order-value" id="itemName">--</span>
+    </div>
+    <div class="order-row">
+      <span class="order-label">价格</span>
+      <span class="order-value" id="itemPrice">--</span>
+    </div>
+    <div class="order-row">
+      <span class="order-label">您当前积分</span>
+      <span class="order-value" id="userCredits">--</span>
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="confirmOrder()">确认支付</button>
+  <div class="status" id="payStatus"></div>
+</div>
+
+<div id="orderDone" style="display:none;">
+  <div class="card">
+    <h3 style="text-align:center;margin-bottom:16px;">✅ 支付成功</h3>
+    <div class="order-id" id="orderId">--</div>
+    <p style="text-align:center;font-size:13px;color:#aaa;margin-bottom:8px;">订单号已发送至您的邮箱</p>
+    <p style="text-align:center;font-size:12px;color:#888;">
+      退款政策：购买后 7 天内可申请退款（扣除已使用部分）<br>
+      如有问题请联系 gm.heheb@gmail.com
+    </p>
+  </div>
+  <button class="btn btn-primary" onclick="goBack()">返回</button>
+</div>
+
+<script>
+var params = new URLSearchParams(location.search);
+var app = params.get("app") || "wordgm";
+var bookid = params.get("bookid");
+var isPro = params.get("pro") === "true";
+
+var user = null;
+try { user = JSON.parse(localStorage.getItem("wordGameGitHubUser") || "null"); } catch (e) {}
+var uid = user ? (user.email || user.login || user.id || "") : "";
+
+if (!uid) {
+  document.getElementById("itemName").textContent = "请先登录";
+  document.querySelector('button[onclick="confirmOrder()"]').disabled = true;
+} else {
+  loadOrder();
+}
+
+function loadOrder() {
+  // 计算订单信息
+  var itemName = "", itemPrice = 0;
+  if (app === "one") {
+    if (isPro) {
+      itemName = "Club One Pro（1 年）";
+      itemPrice = 666;
+    } else {
+      itemName = "Club One（永久）";
+      itemPrice = 1500;
+    }
+  } else if (app === "wordgm" && bookid) {
+    // 词书购买：0.1 积分/词/月
+    // TODO: 从 D1 拉取词书信息计算价格
+    itemName = "词书 " + bookid;
+    itemPrice = "待计算";
+  }
+  document.getElementById("itemName").textContent = itemName;
+  document.getElementById("itemPrice").textContent = typeof itemPrice === "number" ? itemPrice + " 积分" : itemPrice;
+
+  // 拉取用户积分
+  fetch("https://api.r6t5.dpdns.org/api/user?user_id=" + encodeURIComponent(uid))
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      document.getElementById("userCredits").textContent = d.credits + " 积分";
+      if (d.credits < itemPrice) {
+        document.querySelector('button[onclick="confirmOrder()"]').disabled = true;
+        document.getElementById("payStatus").innerHTML = '<span style="color:#e88;">积分不足，请先充值或签到</span>';
+      }
+    });
+}
+
+function confirmOrder() {
+  // 生成订单号
+  var orderId = "R6T5-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+
+  // 调用支付 API
+  var apiPath = "";
+  if (app === "one") {
+    apiPath = isPro ? "buy-pro" : "buy-one";
+  } else {
+    // TODO: 词书购买 API
+    alert("词书购买功能开发中");
+    return;
+  }
+
+  fetch("https://api.r6t5.dpdns.org/api/" + apiPath + "?user_id=" + encodeURIComponent(uid), { method: "POST" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.ok) {
+        // TODO: 发送邮件
+        document.getElementById("orderInfo").style.display = "none";
+        document.getElementById("orderDone").style.display = "";
+        document.getElementById("orderId").textContent = orderId;
+      } else {
+        document.getElementById("payStatus").innerHTML = '<span style="color:#e88;">' + (d.error || "支付失败") + '</span>';
+      }
+    });
+}
+
+function goBack() {
+  location.href = "https://wordgm.r6t5.dpdns.org/";
+}
+</script>
+</body>
+</html>
