@@ -38,7 +38,10 @@ h1 { margin-bottom:20px; font-size:22px; }
       <span class="order-value" id="userCredits">--</span>
     </div>
   </div>
-  <button class="btn btn-primary" onclick="confirmOrder()">确认支付</button>
+  <div style="margin:16px 0;">
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAAFNdFDGD5uPcjBhh" data-callback="onTurnstile"></div>
+  </div>
+  <button class="btn btn-primary" id="payBtn" onclick="confirmOrder()" disabled>确认支付</button>
   <div class="status" id="payStatus"></div>
 </div>
 
@@ -55,7 +58,14 @@ h1 { margin-bottom:20px; font-size:22px; }
   <button class="btn btn-primary" onclick="goBack()">返回</button>
 </div>
 
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script>
+var turnstileToken = null;
+function onTurnstile(token) {
+  turnstileToken = token;
+  document.getElementById("payBtn").disabled = false;
+}
+
 var params = new URLSearchParams(location.search);
 var app = params.get("app") || "wordgm";
 var bookid = params.get("bookid");
