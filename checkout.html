@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>R6T5 Wallet - 结账</title>
+<script src="https://js.stripe.com/dahlia/stripe.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; font-family:"Comic Sans MS","Chalkboard SE","Microsoft Yahei","PingFang SC",sans-serif; }
 body { background:linear-gradient(135deg,#162a22,#1a3a2e); color:#e0f0e8; min-height:100vh; padding:20px; max-width:600px; margin:0 auto; }
@@ -13,11 +14,9 @@ h1 { margin-bottom:20px; font-size:22px; }
 .order-row:last-child { border-bottom:none; }
 .order-label { color:#aaa; }
 .order-value { font-weight:bold; }
-.btn { display:block; width:100%; padding:14px; border:none; border-radius:10px; font-size:15px; cursor:pointer; margin-top:10px; font-weight:bold; }
-.btn-primary { background:linear-gradient(135deg,#4a9e6e,#5ab87e); color:#fff; }
-.btn:disabled { opacity:0.5; cursor:not-allowed; }
 .status { margin-top:12px; font-size:13px; text-align:center; }
 .order-id { font-size:18px; font-weight:bold; color:#ffd54f; text-align:center; padding:20px; background:rgba(255,213,79,0.1); border-radius:10px; margin:16px 0; }
+#checkout-form { min-height:300px; }
 </style>
 </head>
 <body>
@@ -33,27 +32,15 @@ h1 { margin-bottom:20px; font-size:22px; }
       <span class="order-label">价格</span>
       <span class="order-value" id="itemPrice">--</span>
     </div>
-    <div class="order-row">
-      <span class="order-label">您当前积分</span>
-      <span class="order-value" id="userCredits">--</span>
-    </div>
-  </div>
-  <div style="margin:16px 0;">
-    <div class="cf-turnstile" data-sitekey="0x4AAAAAAFNdFDGD5uPcjBhh" data-callback="onTurnstile"></div>
   </div>
 
-  <!-- 支付方式选择 -->
   <div style="margin:16px 0;">
-    <h3 style="font-size:14px;color:#aaa;margin-bottom:8px;">选择支付方式</h3>
-    <div id="payment-element">
-      <!-- Stripe Elements 会渲染在这里 -->
+    <div id="checkout-form">
       <div style="padding:20px;background:rgba(255,255,255,0.05);border-radius:10px;text-align:center;color:#aaa;font-size:13px;">
-        正在加载支付方式...
+        正在加载支付表单...
       </div>
     </div>
   </div>
-
-  <button class="btn btn-primary" id="payBtn" onclick="confirmOrder()" disabled>确认支付</button>
   <div class="status" id="payStatus"></div>
 </div>
 
@@ -67,119 +54,93 @@ h1 { margin-bottom:20px; font-size:22px; }
       如有问题请联系 gm.heheb@gmail.com
     </p>
   </div>
-  <button class="btn btn-primary" onclick="goBack()">返回</button>
+  <button onclick="goBack()" style="display:block;width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:bold;background:linear-gradient(135deg,#4a9e6e,#5ab87e);color:#fff;margin-top:10px;">返回</button>
 </div>
 
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-<script src="https://js.stripe.com/v3/"></script>
 <script>
-var STRIPE_PK = "pk_test_..."; // 填入你的 Stripe Publishable Key
+var STRIPE_PK = "pk_test_..."; // TODO: 填入你的 Stripe Publishable Key
 var stripe = Stripe(STRIPE_PK);
-
-var turnstileToken = null;
-function onTurnstile(token) {
-  turnstileToken = token;
-  document.getElementById("payBtn").disabled = false;
-}
-
-// 初始化 Stripe Payment Element
-fetch("https://api.r6t5.dpdns.org/api/create-payment-intent", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    uid: uid,
-    amount: Math.round(itemPrice * 100), // 转成分
-    currency: "usd"
-  })
-})
-.then(function (r) { return r.json(); })
-.then(function (d) {
-  if (d.clientSecret) {
-    var elements = stripe.elements({ clientSecret: d.clientSecret });
-    var paymentElement = elements.create("payment");
-    paymentElement.mount("#payment-element");
-  } else {
-    document.getElementById("payment-element").innerHTML = '<div style="color:#e88;">支付初始化失败，请稍后重试</div>';
-  }
-})
-.catch(function () {
-  document.getElementById("payment-element").innerHTML = '<div style="color:#e88;">网络错误，请刷新重试</div>';
-});
 
 var params = new URLSearchParams(location.search);
 var app = params.get("app") || "wordgm";
 var bookid = params.get("bookid");
 var isPro = params.get("pro") === "true";
+var uid = params.get("uid") || "";
 
-var user = null;
-// 优先从 URL 参数读（从游戏站跳转）
-var urlUid = params.get("uid");
-if (urlUid) {
-  uid = decodeURIComponent(urlUid);
-} else {
-  try { user = JSON.parse(localStorage.getItem("wordGameGitHubUser") || "null"); } catch (e) {}
-  uid = user ? (user.email || user.login || user.id || "") : "";
-}
+// 判断模式：订阅 vs 一次性
+var mode = (app === "one") ? "subscription" : "payment";
 
-if (!uid) {
-  document.getElementById("itemName").textContent = "请先登录";
-  document.querySelector('button[onclick="confirmOrder()"]').disabled = true;
-} else {
-  loadOrder();
-}
-
+// 加载订单信息
 function loadOrder() {
-  // 计算订单信息
   var itemName = "", itemPrice = 0;
   if (app === "one") {
-    if (isPro) {
-      itemName = "Club One Pro（1 年）";
-      itemPrice = 666;
-    } else {
-      itemName = "Club One（永久）";
-      itemPrice = 1500;
-    }
+    if (isPro) { itemName = "Club One Pro（1 年）"; itemPrice = "¥6.66 / 年"; }
+    else { itemName = "Club One（永久）"; itemPrice = "¥15 / 永久"; }
   } else if (app === "wordgm" && bookid) {
-    // 词书购买：0.1 积分/词/月
-    // 初二秋季教材：383 词 = 38.3 积分/月
-    // One 用户 8 折 = 30.6 积分/月
-    var bookPrices = {
-      "初二秋季教材": 38.3,
-      "示例·旅行英语": 12.5,
-      "示例·日常口语": 10.0,
-      "英语课程标准2022单词表初中": 85.0
-    };
     itemName = "词书「" + bookid + "」（1 年）";
-    itemPrice = bookPrices[bookid] || 20.0;
+    itemPrice = "¥3.83 / 年";
   }
   document.getElementById("itemName").textContent = itemName;
-  document.getElementById("itemPrice").textContent = typeof itemPrice === "number" ? itemPrice + " 积分" : itemPrice;
-
-  // 拉取用户积分
-  fetch("https://api.r6t5.dpdns.org/api/user?user_id=" + encodeURIComponent(uid))
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      document.getElementById("userCredits").textContent = d.credits + " 积分";
-      if (d.credits < itemPrice) {
-        document.querySelector('button[onclick="confirmOrder()"]').disabled = true;
-        document.getElementById("payStatus").innerHTML = '<span style="color:#e88;">积分不足，请先充值或签到</span>';
-      }
-    });
+  document.getElementById("itemPrice").textContent = itemPrice;
 }
 
-function confirmOrder() {
-  var orderId = "R6T5-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+loadOrder();
 
-  // 用 Stripe 确认支付
-  stripe.confirmPayment({
-    elements: elements,
-    confirmParams: {
-      return_url: location.href.split("?")[0] + "?success=" + orderId
-    }
+// 创建 Checkout Session
+fetch("https://api.r6t5.dpdns.org/api/create-checkout-session", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    uid: uid,
+    app: app,
+    bookid: bookid,
+    isPro: isPro,
+    mode: mode
   })
-  .then(function (result) {
-    if (result.error) {
-      document.getElementById("payStatus").innerHTML = '<span style="color:#e88;">' + result.error.message + '</span>';
+})
+.then(function (r) { return r.json(); })
+.then(function (d) {
+  if (d.client_secret) {
+    initCheckoutForm(d.client_secret);
+  } else {
+    document.getElementById("checkout-form").innerHTML = '<div style="color:#e88;">支付初始化失败：' + (d.error || "未知错误") + '</div>';
+  }
+})
+.catch(function () {
+  document.getElementById("checkout-form").innerHTML = '<div style="color:#e88;">网络错误，请刷新重试</div>';
+});
+
+function initCheckoutForm(clientSecret) {
+  var appearance = {
+    theme: "stripe",
+    labels: "auto",
+    inputs: "spaced",
+    variables: {
+      borderRadius: "4px",
+      colorBackground: "#ffffff",
+      colorDanger: "#df1b41",
+      colorPrimary: "#0570de",
+      colorSuccess: "#00c853",
+      colorText: "#30313d",
+      fontFamily: "default",
+      fontSizeBase: "16px",
+      spacingUnit: "4px"
+    }
+  };
+
+  var checkout = stripe.initCheckoutFormSdk({ clientSecret: clientSecret, appearance: appearance });
+  var form = checkout.createForm({ layout: "expanded" });
+  form.mount("#checkout-form");
+
+  checkout.loadActions().then(function (result) {
+    if (result.type === "success") {
+      form.on("confirm", async function (event) {
+        try {
+          await result.actions.confirm({ formConfirmEvent: event });
+        } catch (error) {
+          document.getElementById("payStatus").innerHTML = '<span style="color:#e88;">' + error.message + '</span>';
+        }
+      });
     }
   });
 }
