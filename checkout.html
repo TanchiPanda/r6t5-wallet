@@ -41,6 +41,24 @@ h1 { margin-bottom:20px; font-size:22px; }
   <div style="margin:16px 0;">
     <div class="cf-turnstile" data-sitekey="0x4AAAAAAFNdFDGD5uPcjBhh" data-callback="onTurnstile"></div>
   </div>
+
+  <!-- 支付方式选择 -->
+  <div style="margin:16px 0;">
+    <h3 style="font-size:14px;color:#aaa;margin-bottom:8px;">选择支付方式</h3>
+    <div style="display:flex;gap:10px;">
+      <button class="btn" style="flex:1;background:#003087;color:#fff;" onclick="selectPay('paypal')">
+        <img src="https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg" style="height:20px;" />
+        PayPal
+      </button>
+      <button class="btn" style="flex:1;background:#000;color:#fff;" onclick="selectPay('apple')">
+         Pay
+      </button>
+    </div>
+    <div style="font-size:12px;color:#888;margin-top:8px;">
+      PayPal 支持信用卡 / 借记卡；Apple Pay 仅在 Safari / iOS 可用
+    </div>
+  </div>
+
   <button class="btn btn-primary" id="payBtn" onclick="confirmOrder()" disabled>确认支付</button>
   <div class="status" id="payStatus"></div>
 </div>
@@ -64,6 +82,15 @@ var turnstileToken = null;
 function onTurnstile(token) {
   turnstileToken = token;
   document.getElementById("payBtn").disabled = false;
+}
+
+var payMethod = null;
+function selectPay(method) {
+  payMethod = method;
+  // 高亮选中
+  var buttons = document.querySelectorAll("button[onclick^='selectPay']");
+  buttons.forEach(function (b) { b.style.opacity = "0.5"; });
+  event.target.closest("button").style.opacity = "1";
 }
 
 var params = new URLSearchParams(location.search);
