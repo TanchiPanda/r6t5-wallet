@@ -26,6 +26,14 @@ input { width:100%; padding:12px; border-radius:10px; border:1px solid rgba(255,
 <body>
 <h1>💰 R6T5 Wallet 积分中心</h1>
 
+<div class="card" id="loginCard">
+  <h3 style="margin-bottom:12px;font-size:15px;">📧 输入您的邮箱开始使用</h3>
+  <input type="email" id="emailInput" placeholder="example@email.com" style="margin-bottom:10px;">
+  <button class="btn btn-primary" onclick="login()">进入钱包</button>
+  <p style="font-size:12px;color:#aaa;margin-top:8px;">输入邮箱即可签到、购买，无需 GitHub 登录</p>
+</div>
+
+<div id="mainContent" style="display:none;">
 <div class="card credits-display">
   <div class="credits-num" id="creditsNum">--</div>
   <div style="font-size:13px;color:#aaa;">游戏积分</div>
@@ -95,12 +103,32 @@ input { width:100%; padding:12px; border-radius:10px; border:1px solid rgba(255,
 var user = null;
 try { user = JSON.parse(localStorage.getItem("wordGameGitHubUser") || "null"); } catch (e) {}
 var uid = user ? (user.email || user.login || user.id || "") : "";
+
+// 优先从钱包站自己的 localStorage 读
+if (!uid) {
+  uid = localStorage.getItem("r6t5_wallet_uid") || "";
+}
+
 var planNames = { free: "Club Free", one: "Club One", pro: "Club One Pro" };
 var planBadgeClass = { free: "", one: "one", pro: "pro" };
 
 if (!uid) {
-  document.getElementById("creditsNum").textContent = "请先登录";
+  // 没有 uid，显示登录卡片
+  document.getElementById("loginCard").style.display = "";
+  document.getElementById("mainContent").style.display = "none";
 } else {
+  document.getElementById("loginCard").style.display = "none";
+  document.getElementById("mainContent").style.display = "";
+  refresh();
+}
+
+function login() {
+  var email = document.getElementById("emailInput").value.trim();
+  if (!email || !email.includes("@")) { alert("请输入有效邮箱"); return; }
+  localStorage.setItem("r6t5_wallet_uid", email);
+  uid = email;
+  document.getElementById("loginCard").style.display = "none";
+  document.getElementById("mainContent").style.display = "";
   refresh();
 }
 
