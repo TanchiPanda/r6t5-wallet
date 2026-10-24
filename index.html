@@ -53,6 +53,15 @@ input { width:100%; padding:12px; border-radius:10px; border:1px solid rgba(255,
 </div>
 
 <div class="card">
+  <h3 style="margin-bottom:12px;font-size:15px;">🎁 新用户福利</h3>
+  <button class="btn btn-rainbow" id="trialBtn" onclick="claimTrial()">
+    领取 One Pro 90 天免费试用
+    <div style="font-size:11px;font-weight:normal;margin-top:4px;">过期自动降为 Free，仅限一次</div>
+  </button>
+  <div class="status" id="trialStatus"></div>
+</div>
+
+<div class="card">
   <h3 style="margin-bottom:12px;font-size:15px;">💎 充值积分</h3>
   <input type="number" id="rechargeAmount" placeholder="充值积分数" min="100">
   <button class="btn btn-primary" onclick="doRecharge()">充值（灰度测试）</button>
@@ -95,6 +104,14 @@ function refresh() {
       }
       document.getElementById("buyOneBtn").style.display = (d.plan === "free") ? "" : "none";
       document.getElementById("buyProBtn").style.display = (d.plan === "free" || d.plan === "one") ? "" : "none";
+      // 试用按钮状态
+      var trialBtn = document.getElementById("trialBtn");
+      if (d.trial_claimed || d.plan === "pro" || d.plan === "one") {
+        trialBtn.disabled = true;
+        trialBtn.textContent = "已领取过试用";
+      } else {
+        trialBtn.disabled = false;
+      }
     });
 }
 
@@ -142,8 +159,21 @@ function buyPro() {
 function doRecharge() {
   var amt = parseInt(document.getElementById("rechargeAmount").value);
   if (!amt || amt < 100) { alert("请输入至少 100 积分"); return; }
-  // TODO: 接入真实支付
   document.getElementById("rechargeStatus").innerHTML = '<span style="color:#aaa;">充值功能灰度测试中，暂未开放</span>';
+}
+
+function claimTrial() {
+  if (!confirm("确认领取 One Pro 90 天免费试用？（仅限一次，过期自动降为 Free）")) return;
+  fetch("https://api.r6t5.dpdns.org/api/trial?user_id=" + encodeURIComponent(uid), { method: "POST" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.ok) {
+        document.getElementById("trialStatus").innerHTML = '<span style="color:#7ee;">✅ 已领取 One Pro 90 天免费试用</span>';
+        refresh();
+      } else {
+        document.getElementById("trialStatus").innerHTML = '<span style="color:#e88;">' + (d.error || "领取失败") + '</span>';
+      }
+    });
 }
 </script>
 </body>
