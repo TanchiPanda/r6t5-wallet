@@ -100,6 +100,9 @@ function loadOrder() {
 
 loadOrder();
 
+// 后台加载支付表单（不被弹窗阻塞）
+loadCheckoutForm();
+
 // Turnstile 验证
 var turnstileToken = null;
 function onTurnstile(token) {
@@ -107,10 +110,9 @@ function onTurnstile(token) {
   document.getElementById("confirmBtn").disabled = false;
 }
 
-// 确认测试提示后加载支付表单
+// 确认测试提示后关闭弹窗
 function confirmTest() {
   document.getElementById("testModal").style.display = "none";
-  loadCheckoutForm();
 }
 
 // 加载 Stripe 支付表单
