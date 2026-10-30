@@ -59,60 +59,39 @@ h1 { margin-bottom:20px; font-size:22px; }
 </div>
 
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script src="sbauth.js"></script>
 <script>
 var turnstileToken = null;
-function onTurnstile(token) {
-  turnstileToken = token;
-  document.getElementById("payBtn").disabled = false;
-}
-
+function onTurnstile(token) { turnstileToken = token; document.getElementById("payBtn").disabled = false; }
 var params = new URLSearchParams(location.search);
 var app = params.get("app") || "wordgm";
 var bookid = params.get("bookid");
 var isPro = params.get("pro") === "true";
-
 var user = null;
-// 优先从 URL 参数读（从游戏站跳转）
+var uid = "";
 var urlUid = params.get("uid");
-if (urlUid) {
-  uid = decodeURIComponent(urlUid);
-} else {
+if (urlUid) { uid = decodeURIComponent(urlUid); }
+else {
   try { user = JSON.parse(localStorage.getItem("wordGameGitHubUser") || "null"); } catch (e) {}
   uid = user ? (user.email || user.login || user.id || "") : "";
+  if (!uid) { try { var m = document.cookie.match(/(?:^|; )ms_user=([^;]*)/); if (m) { var cu = JSON.parse(decodeURIComponent(m[1])); uid = cu.email || ""; } } catch (e) {} }
+  if (!uid) uid = localStorage.getItem("r6t5_wallet_uid") || "";
 }
-
+sbRefreshUser().then(function (u) { if (u && u.email && !uid) { uid = u.email; loadOrder(); } }).catch(function () {});
 if (!uid) {
   document.getElementById("itemName").textContent = "请先登录";
   document.querySelector('button[onclick="confirmOrder()"]').disabled = true;
-} else {
-  loadOrder();
-}
-
+} else { loadOrder(); }
 function loadOrder() {
-  // 计算订单信息
   var itemName = "", itemPrice = 0;
-  if (app === "one") {
-    if (isPro) {
-      itemName = "Club One Pro（1 年）";
-      itemPrice = 666;
-    } else {
-      itemName = "Club One（永久）";
-      itemPrice = 1500;
-    }
-  } else if (app === "wordgm" && bookid) {
-    var bookPrices = {
-      "初二秋季教材": 38.3,
-      "示例·旅行英语": 12.5,
-      "示例·日常口语": 10.0,
-      "英语课程标准2022单词表初中": 85.0
-    };
+  if (app === "one") { if (isPro) { itemName = "Club One Pro（1 年）"; itemPrice = 666; } else { itemName = "Club One（永久）"; itemPrice = 1500; } }
+  else if (app === "wordgm" && bookid) {
+    var bookPrices = { "初二秋季教材":38.3,"示例·旅行英语":12.5,"示例·日常口语":10.0,"英语课程标准2022单词表初中":85.0 };
     itemName = "词书「" + bookid + "」（1 年）";
     itemPrice = bookPrices[bookid] || 20.0;
   }
   document.getElementById("itemName").textContent = itemName;
   document.getElementById("itemPrice").textContent = typeof itemPrice === "number" ? itemPrice + " 积分" : itemPrice;
-
-  // 拉取用户积分
   fetch("https://api.r6t5.dpdns.org/api/user?user_id=" + encodeURIComponent(uid))
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -123,21 +102,11 @@ function loadOrder() {
       }
     });
 }
-
 function confirmOrder() {
-  // 生成订单号
-  var orderId = "R6T5-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
-
-  // 调用支付 API
+  var orderId = "R6T5-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2,6).toUpperCase();
   var apiPath = "";
-  if (app === "one") {
-    apiPath = isPro ? "buy-pro" : "buy-one";
-  } else {
-    // TODO: 词书购买 API
-    alert("词书购买功能开发中");
-    return;
-  }
-
+  if (app === "one") { apiPath = isPro ? "buy-pro" : "buy-one"; }
+  else { alert("词书购买功能开发中"); return; }
   fetch("https://api.r6t5.dpdns.org/api/" + apiPath + "?user_id=" + encodeURIComponent(uid), { method: "POST" })
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -150,10 +119,7 @@ function confirmOrder() {
       }
     });
 }
-
-function goBack() {
-  location.href = "https://wordgm.r6t5.dpdns.org/";
-}
+function goBack() { location.href = "https://wordgm.r6t5.dpdns.org/"; }
 </script>
 </body>
 </html>
